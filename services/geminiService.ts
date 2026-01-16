@@ -7,9 +7,20 @@ import mammoth from "mammoth";
 // @ts-ignore
 import readXlsxFile from "read-excel-file";
 
-// Initialize Gemini client
-// Note: API Key must be in process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Check for API Key availability
+const API_KEY = process.env.API_KEY;
+
+// Initialize Gemini client only if key is valid-ish, otherwise calls will fail gracefully
+const ai = new GoogleGenAI({ apiKey: API_KEY || "dummy_key_to_prevent_init_crash" });
+
+// Helper to validate API key before making requests
+const validateApiKey = () => {
+  if (!API_KEY || API_KEY.startsWith("YOUR_GEMINI") || API_KEY === "undefined") {
+    throw new Error(
+      "API 키가 설정되지 않았습니다. .env 파일에 키를 넣거나, GitHub Settings > Secrets에 'API_KEY'를 추가해주세요."
+    );
+  }
+};
 
 /**
  * Extracts text from a given file.
@@ -41,6 +52,7 @@ export const extractTextFromFile = async (file: File): Promise<string> => {
 
     // 4. Handle PDF (Send to Gemini)
     if (lowerName.endsWith('.pdf')) {
+        validateApiKey(); // Ensure key exists before calling API
         const base64Data = await fileToBase64(file);
         const prompt = `
           Extract all readable text from this PDF document. 
@@ -69,6 +81,7 @@ export const extractTextFromFile = async (file: File): Promise<string> => {
 
   } catch (error: any) {
     console.error("File Extraction Error:", error);
+    if (error.message.includes("API 키")) throw error;
     if (error.message.includes("HWP") || error.message.includes("PPTX")) throw error;
     if (error.message?.includes('400')) {
        throw new Error("파일 형식이 올바르지 않거나 AI가 처리할 수 없습니다. PDF로 변환 후 시도해주세요.");
@@ -85,6 +98,8 @@ export const translateSafetyText = async (
   text: string,
   targetLang: TargetLanguage
 ): Promise<string> => {
+  validateApiKey(); // Validate key
+
   const prompt = `
     You are a professional construction safety interpreter. 
     Translate the following safety education material from Korean to ${targetLang}.
@@ -108,9 +123,9 @@ export const translateSafetyText = async (
     if (!translatedText) throw new Error("Translation failed: Empty response");
     
     return translatedText.trim();
-  } catch (error) {
+  } catch (error: any) {
     console.error("Translation Error:", error);
-    throw new Error("번역에 실패했습니다. 네트워크 상태나 API 키를 확인해주세요.");
+    throw new Error(`번역 실패: ${error.message || "알 수 없는 오류"}`);
   }
 };
 
@@ -122,6 +137,8 @@ export const generateSpeech = async (
   text: string,
   audioContext: AudioContext
 ): Promise<AudioBuffer> => {
+  validateApiKey(); // Validate key
+
   // TTS has limitations on length. 4000 characters is a safe upper bound for a single request.
   if (text.length > 4000) {
       throw new Error("번역된 텍스트가 너무 길어(4000자 초과) 음성으로 변환할 수 없습니다. 내용을 나누어 입력해주세요.");

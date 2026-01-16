@@ -7,11 +7,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
   return {
     plugins: [react()],
-    // Important: base: './' allows the app to run in subdirectories (like GitHub Pages)
-    base: './',
+    // GitHub Pages repository name used as base path
+    base: '/safespeak/', 
     define: {
       // Polyfill process.env.API_KEY for the app usage
       'process.env.API_KEY': JSON.stringify(env.API_KEY),
+      // Polyfill process.env to prevent crashes in libraries that check it
+      'process.env': {}
     },
   };
 });
